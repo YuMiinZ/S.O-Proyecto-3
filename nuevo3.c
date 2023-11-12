@@ -213,7 +213,6 @@ void cleanFileList(const char* historyFileName) {
     rename("temp_file_list.bin", historyFileName);
 }
 
-
 void getFileList(const char *listaArchivosPath, char *fileList, size_t listSize, const char *option, struct FileInfo fileListData[]) {
     int cont = 0;
     memset(fileList, 0, listSize);
@@ -249,6 +248,7 @@ void sendFilesListData(int clientSocket, const char *localDir, char *option, con
 
     // Envía la lista de archivos al servidor
     send(clientSocket, fileList, strlen(fileList), 0);
+
     // Tokeniza la lista de archivos
     char *token = strtok(fileList, ",");
     while (token != NULL) {
@@ -267,7 +267,7 @@ void sendFilesListData(int clientSocket, const char *localDir, char *option, con
         stat(filePath, &file_Info);
         time_t modificationTime = file_Info.st_mtime;
         // Envía la fecha de modificación al servidor
-        send(clientSocket, &modificationTime, sizeof(time_t), 0);
+        send(clientSocket, &fileListData[cont].lastModified, sizeof(time_t), 0);
 
 
         // Obtiene el tamaño del archivo
@@ -284,8 +284,18 @@ void sendFilesListData(int clientSocket, const char *localDir, char *option, con
 
         fclose(file);
 
-        printf("Archivo enviado: %s\n", token);
+        printf("Archivo enviado: %s\nTamaño: %ld bytes\nFecha Modificación: %s", token, fileSize, ctime(&modificationTime));
 
+        
+        char ackMessage[4];
+        recv(clientSocket, ackMessage, sizeof(ackMessage), 0);
+
+        if (strcmp(ackMessage, "ACK") == 0) {
+            printf("Operación confirmada por el servidor.\n\n");
+        } else {
+            fprintf(stderr, "Error: Falta de confirmación del servidor o mensaje de error.\n");
+        }
+        cont++;
         token = strtok(NULL, ",");
     }
 
@@ -293,38 +303,63 @@ void sendFilesListData(int clientSocket, const char *localDir, char *option, con
 
 time_t getFileInfoModification(const char *historyFileName, const char *fileName) {
     struct FileInfo file_info_entry;
-
-    printf("archivo %s, nombre %s\n", historyFileName, fileName);
-
     
     FILE *history_file = fopen(historyFileName, "rb");
     if (history_file == NULL) {
         perror("Error al abrir el archivo de historial");
         exit(1);
     }
-
     
     while (fread(&file_info_entry, sizeof(struct FileInfo), 1, history_file) == 1) {
         if (strcmp(file_info_entry.filename, fileName) == 0) {
             fclose(history_file);
-            return file_info_entry.lastModified;
+            return file_info_entry.lastModified; //Si lo encuentra retorna su fecha de modificación
         }
     }
 
     fclose(history_file);
-    return -1; // Retorna la estructura para indicar que el archivo no se encontró
+    return -1; // Indica que el archivo no se encontró
+}
+
+void renameFileInHistory(const char *filePath, const char *oldFileName, const char *newFileName, const char *localDir) {
+    FILE *history_file = fopen(filePath, "r+b");
+    if (history_file == NULL) {
+        perror("Error al abrir el archivo de historial");
+        exit(1);
+    }
+
+    struct FileInfo file_info_entry;
+
+    while (fread(&file_info_entry, sizeof(struct FileInfo), 1, history_file) == 1) {
+        if (strcmp(file_info_entry.filename, oldFileName) == 0) {
+            // Encontramos la entrada que deseamos renombrar
+            strcpy(file_info_entry.filename, newFileName);
+            fseek(history_file, -sizeof(struct FileInfo), SEEK_CUR);
+            fwrite(&file_info_entry, sizeof(struct FileInfo), 1, history_file);
+
+            char newFilePath[500]; 
+            snprintf(newFilePath, sizeof(newFilePath), "%s/%s", localDir, newFileName);
+            // Cambiar el nombre en el sistema de archivos
+            if (rename(filePath, newFilePath) != 0) {
+                perror("Error al renombrar el archivo en el sistema de archivos");
+                exit(1);
+            }
+            break; // Sal del bucle una vez que se haya encontrado y actualizado el archivo.
+        }
+    }
+
+    fclose(history_file);
 }
 
 // Función para recibir un archivo y guardarlo en el servidor
 void receiveFile(int socket, const char *filePath, const char *listaArchivosPath, const char *localDir) {
+    //Recibe la información
     int bytesRead;
     long fileSize;
     time_t modificationTime;
     recv(socket, &modificationTime, sizeof(time_t), 0);
 
-    char modificationTimeStr[1024];
-    strftime(modificationTimeStr, sizeof(modificationTimeStr), "%c", localtime(&modificationTime));
-    printf("Fecha: %s\n", modificationTimeStr);
+    printf("Fecha: %s", ctime(&modificationTime));
 
     // Recibe el tamaño del archivo
     recv(socket, &fileSize, sizeof(long), 0);
@@ -336,24 +371,62 @@ void receiveFile(int socket, const char *filePath, const char *listaArchivosPath
     const char *fileExtension = strrchr(fileName, '.');
 
     time_t fileInfoModifiedDate = getFileInfoModification(listaArchivosPath, fileName);
-    /*if (fileInfoModifiedDate == -1) {
+    // Convertir las fechas a cadenas usando ctime
+    char localFileTime[26];
+    char FileEntryTime[26];
+    
+    // Eliminar el carácter de nueva línea al final
+    strncpy(localFileTime, ctime(&fileInfoModifiedDate), 24);
+    localFileTime[24] = '\0';
+
+    strncpy(FileEntryTime, ctime(&modificationTime), 24);
+    FileEntryTime[24] = '\0';
+
+
+    if (fileInfoModifiedDate == -1) {
         printf("El archivo %s no se encontró en el historial.\n", fileName);
     } else {
-        printf("Fecha Archivo entrante: %sFecha archivo lista: %s", ctime(&modificationTime), ctime(&fileInfoModifiedDate));
-        if (difftime(modificationTime, fileInfoModifiedDate) > 0){
+        printf("Fecha Archivo entrante: %sFecha archivo lista: %s", FileEntryTime, localFileTime);
+            // Comparar las cadenas
+        if (strcmp(localFileTime, FileEntryTime) == 0) {
+            printf("Las fechas son iguales.\n");
+        }
+        else if (difftime(modificationTime, fileInfoModifiedDate) > 0){
             printf("El archivo ENTRANTE es el más nuevo\n");
-            //strcat(fileName, "New");
-            //renameFileInHistory(filePath, fileName, strcat(fileName, "Old"), localDir);
+            // Calcular la longitud del nombre del archivo sin la extensión
+            size_t name_length = fileExtension - fileName;
+
+            // Crear una nueva cadena para el nuevo nombre de archivo
+            char new_name1[name_length + 4];  // +4 para Old/New y el terminador nulo
+            strncpy(new_name1, fileName, name_length);
+            strcpy(new_name1 + name_length, "New");
+            strcat(new_name1, fileExtension);
+
+            char new_name2[name_length + 4];  // +4 para Old/New y el terminador nulo
+            strncpy(new_name2, fileName, name_length);
+            strcpy(new_name2 + name_length, "Old");
+            strcat(new_name2, fileExtension);
+
+           // renameFileInHistory(filePath, fileName, new_name2, localDir);
         } else if (difftime(modificationTime, fileInfoModifiedDate) < 0) {
             printf("el archivo de LOCAL es mas nuevo\n");
-            //strcat(fileName, "Old");
-            //renameFileInHistory(filePath, fileName, strcat(fileName, "New"), localDir);
-        } else {
-            printf("Los dos son iguales \n");
-        }
-    }*/
+            // Calcular la longitud del nombre del archivo sin la extensión
+            size_t name_length = fileExtension - fileName;
 
-    //Escritura del archivo
+            // Crear una nueva cadena para el nuevo nombre de archivo
+            char new_name1[name_length + 4];  // +4 para Old/New y el terminador nulo
+            strncpy(new_name1, fileName, name_length);
+            strcpy(new_name1 + name_length, "Old");
+            strcat(new_name1, fileExtension);
+
+            char new_name2[name_length + 4];  // +4 para Old/New y el terminador nulo
+            strncpy(new_name2, fileName, name_length);
+            strcpy(new_name2 + name_length, "New");
+            strcat(new_name2, fileExtension);
+            //renameFileInHistory(filePath, fileName, new_name2, localDir);
+        }
+    }
+
     FILE *file = fopen(filePath, "wb");
     if (file == NULL) {
         perror("Error al crear el archivo");
@@ -371,6 +444,8 @@ void receiveFile(int socket, const char *filePath, const char *listaArchivosPath
     }
 
     fclose(file);
+
+    send(socket, "ACK", strlen("ACK"), 0);
 }
 
 void receiveFilesListData(int clientSocket, const char *localDir, const char *listaArchivosPath){
@@ -389,24 +464,10 @@ void receiveFilesListData(int clientSocket, const char *localDir, const char *li
             snprintf(filePath, sizeof(filePath), "%s/%s", localDir, token);
 
             if (strcmp(token, "listaArchivosTemp.bin") != 0) {
-                if (strcmp(token, "listaArchivos.bin") == 0) {
-                    snprintf(filePath, sizeof(filePath), "%s/%s", localDir, "listaArchivosTemp.bin");
-                }
                 receiveFile(clientSocket, filePath, listaArchivosPath, localDir);
                 printf("Archivo recibido: %s\n\n", token);
-            } else {
-                printf("Archivo recibido: %s (ignorado)\n", token);
-                long fileSize;
-                recv(clientSocket, &fileSize, sizeof(long), 0);
-                while (fileSize > 0) {
-                    char buffer[8000];
-                    int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
-                    if (bytesRead <= 0) {
-                        break;
-                    }
-                    fileSize -= bytesRead;
-                }
             }
+            
 
             token = strtok(NULL, ",");
         }
@@ -467,7 +528,7 @@ int main(int argc, char *argv[]) {
             //Si existe solo lo actualiza
             printf("El archivo %s existe en el directorio %s.\n", listaArchivosFilename, localDir);
             printf("Actualizando el archivo de historial...\n");
-            //updateFileList(localDir, listaArchivosPath);
+            updateFileList(localDir, listaArchivosPath);
             printf("Lista de archivos actualizada en: %s\n", listaArchivosPath);
         } else {
             //Si no existe se crea uno nuevo
@@ -478,8 +539,20 @@ int main(int argc, char *argv[]) {
 
         // Recibe el nombre de los archivos del cliente
         receiveFilesListData(clientSocket, localDir, listaArchivosPath);
+        char ackMessage[4];
+        recv(clientSocket, ackMessage, sizeof(ackMessage), 0);
+        if (strcmp(ackMessage, "SCK") == 0) {
+            printf("Operación confirmada por el servidor Me toca enviar archivos.\n\n");
+        } else {
+            fprintf(stderr, "Error: Falta de confirmación del servidor o mensaje de error.\n");
+        }
+
         printf("\n");
+
+        
         sendFilesListData(clientSocket, localDir,"all", listaArchivosPath);
+        send(clientSocket, "SCK", strlen("SCK"), 0);
+
 
         close(clientSocket);
         close(serverSocket);
@@ -510,7 +583,7 @@ int main(int argc, char *argv[]) {
             //Si existe solo lo actualiza
             printf("El archivo %s existe en el directorio %s.\n", listaArchivosFilename, localDir);
             printf("Actualizando el archivo de historial...\n");
-            //updateFileList(localDir, listaArchivosPath);
+            updateFileList(localDir, listaArchivosPath);
             printf("Lista de archivos actualizada en: %s\n", listaArchivosPath);
         } else {
             //Si no existe se crea uno nuevo
@@ -520,12 +593,21 @@ int main(int argc, char *argv[]) {
         }
 
         sendFilesListData(clientSocket, localDir,"all", listaArchivosPath);
+        send(clientSocket, "SCK", strlen("SCK"), 0);
+
         printf("\n");
+
         receiveFilesListData(clientSocket, localDir, listaArchivosPath);
+        char ackMessage[4];
+        recv(clientSocket, ackMessage, sizeof(ackMessage), 0);
+        if (strcmp(ackMessage, "SCK") == 0) {
+            printf("Operación confirmada por el servidor Me toca enviar Finalizar.\n\n");
+        } else {
+            fprintf(stderr, "Error: Falta de confirmación del servidor o mensaje de error.\n");
+        }
 
         close(clientSocket);
     }
 
     return 0;
 }
-

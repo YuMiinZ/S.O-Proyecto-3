@@ -79,7 +79,8 @@ void createFileList(const char* dirName, const char* historyFileName) {
     }
 
     while ((dp = readdir(dir)) != NULL) {
-        if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0 || strcmp(dp->d_name, "historial.txt") == 0) {
+        if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0 || strcmp(dp->d_name, "listaArchivos.bin") == 0 && 
+            strcmp(dp->d_name, "listaArchivosLocal.bin") == 0) {
             continue;
         }
 
@@ -237,23 +238,27 @@ int main(int argc, char *argv[]) {
     char listaArchivosPath[500]; 
     snprintf(listaArchivosPath, sizeof(listaArchivosPath), "%s/%s", localDir, listaArchivosFilename);
 
+    const char *listaArchivosLocalFilename = "listaArchivosLocal.bin";
+    char listaArchivosPath[500]; 
+    snprintf(listaArchivosPath, sizeof(listaArchivosPath), "%s/%s", localDir, listaArchivosFilename);
+
     // Comprueba si este programa debe actuar como servidor
     if (argc == 3) {
         // Modo cliente: El tercer argumento contiene la dirección IP del servidor
         printf("Conexion del cliente\n");
 
         //Verifica si existe el archivo listaArchivos.txt 
-        if (fileExists(listaArchivosPath)) {
+        if (fileExists(listaArchivosLocalFilename)) {
             //Si existe solo lo actualiza
-            printf("El archivo %s existe en el directorio %s.\n", listaArchivosFilename, localDir);
+            printf("El archivo %s existe en el directorio %s.\n", listaArchivosLocalFilename, localDir);
             printf("Actualizando el archivo de historial...\n");
-            //updateFileList(localDir, listaArchivosPath);
-            printf("Lista de archivos actualizada en: %s\n\n", listaArchivosPath);
+            updateFileList(localDir, listaArchivosLocalFilename);
+            printf("Lista de archivos actualizada en: %s\n\n", listaArchivosLocalFilename);
         } else {
             //Si no existe se crea uno nuevo
-            printf("\nEl archivo %s no existe en el directorio %s. \nSe creará el archivo historial.\n", listaArchivosPath, localDir);
-            createFileList(localDir, listaArchivosPath);
-            printf("Lista de archivos creada en: %s\n\n", listaArchivosPath);
+            printf("\nEl archivo %s no existe en el directorio %s. \nSe creará el archivo historial.\n", listaArchivosLocalFilename, localDir);
+            createFileList(localDir, listaArchivosLocalFilename);
+            printf("Lista de archivos creada en: %s\n\n", listaArchivosLocalFilename);
         }
 
         // syncDirectories(localDir, "", remoteIP);
@@ -291,12 +296,12 @@ int main(int argc, char *argv[]) {
         printf("Conexion del servidor\n");
 
         //Verifica si existe el archivo listaArchivos.txt 
-        if (fileExists(listaArchivosPath)) {
+        if (fileExists(listaArchivosLocalFilename)) {
             //Si existe solo lo actualiza
-            printf("El archivo %s existe en el directorio %s.\n", listaArchivosFilename, localDir);
+            printf("El archivo %s existe en el directorio %s.\n", listaArchivosLocalFilename, localDir);
             printf("Actualizando el archivo de historial...\n");
-            //updateFileList(localDir, listaArchivosPath);
-            printf("Lista de archivos actualizada en: %s\n", listaArchivosPath);
+            updateFileList(localDir, listaArchivosLocalFilename);
+            printf("Lista de archivos actualizada en: %s\n", listaArchivosLocalFilename);
             //modificados y nuevos 1 funcion para obtener la lista - usan el mismo sendfiles mismo (mandar contenido)
             // crear la lista (se crean dos), enviar, recibir
             //luego manda nombre - lista nueva para los eliminados - diferente solo manda lista
@@ -304,9 +309,9 @@ int main(int argc, char *argv[]) {
             //send
         } else {
             //Si no existe se crea uno nuevo
-            printf("\nEl archivo %s no existe en el directorio %s. \nSe creará el archivo historial.\n", listaArchivosPath, localDir);
-            createFileList(localDir, listaArchivosPath);
-            printf("Lista de archivos creada en: %s\n\n", listaArchivosPath);
+            printf("\nEl archivo %s no existe en el directorio %s. \nSe creará el archivo historial.\n", listaArchivosLocalFilename, localDir);
+            createFileList(localDir, listaArchivosLocalFilename);
+            printf("Lista de archivos creada en: %s\n\n", listaArchivosLocalFilename);
             //allfiles 1 funcion para obtener la lista - usan el mismo send - mismo
         }
 
