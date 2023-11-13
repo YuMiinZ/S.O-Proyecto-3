@@ -1,1 +1,1 @@
-esto es una prueba de server 2 txt Cambio solo en cliente
+esto es una prueba de server 2 txt Cambio solo en cliente de nuevo en este archivo llamado server2.txt

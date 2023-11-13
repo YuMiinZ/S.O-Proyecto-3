@@ -516,7 +516,7 @@ void receiveFile(int socket, const char *filePath, const char *listaArchivosPath
         printf("Accion entrante: %s Accion lista: %s\n", action, localFileStruct.action);
         printf("Tamaño Archivo entrante: %ld Tamaño archivo lista: %ld\n", fileSize, fileInfoSize);
         if (strcmp(action,"Modificado") == 0 && strcmp(localFileStruct.action,"Modificado") == 0){
-            printf("El archivo ENTRANTE es el más nuevo\n");
+            printf("Ocurre Conflicto\n");
             // Calcular la longitud del nombre del archivo sin la extensión
             size_t name_length = fileExtension - fileName;
 
@@ -550,8 +550,8 @@ void receiveFile(int socket, const char *filePath, const char *listaArchivosPath
                 strcpy(filePathCopy, newFilePath2);
             }
             
-        } else if (strcmp(action,"No Modificado") == 0 && strcmp(localFileStruct.action,"Modificado") == 0 ||
-                   strcmp(action,"No Modificado") == 0 && strcmp(localFileStruct.action,"No Modificado") == 0 ) {
+        } else if (strcmp(action,"No modificado") == 0 ) {
+            printf("No se escribe.\n");
             char buffer[8000];
             while (fileSize > 0) {
                 bytesRead = recv(socket, buffer, sizeof(buffer), 0);
