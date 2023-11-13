@@ -110,14 +110,13 @@ void updateFileInHistory(const char *filePath, time_t *lastModified, const char 
 
     while (fread(&file_info_entry, sizeof(struct FileInfo), 1, history_file) == 1) {
         if (strcmp(file_info_entry.filename, fileName) == 0) {
-            // Encontramos la entrada que deseamos actualizar
             file_info_entry.size = fileSize;
             file_info_entry.lastModified = *lastModified;
             strcpy(file_info_entry.action, action);
             
             fseek(history_file, -sizeof(struct FileInfo), SEEK_CUR);
             fwrite(&file_info_entry, sizeof(struct FileInfo), 1, history_file);
-            break; // Sal del bucle una vez que se haya encontrado y actualizado el archivo.
+            break;
         }
     }
 
@@ -330,18 +329,6 @@ void getFileList(const char *listaArchivosPath, char *fileList, size_t listSize,
                 cont++;
             }
         }
-    } else {
-        while (fread(&file_info_entry, sizeof(struct FileInfo), 1, historyFile) == 1) {
-            if(strcmp(file_info_entry.action, "Modificado") == 0 || strcmp(file_info_entry.action, "Creado") == 0){
-                // Agrega el nombre del archivo a la cadena con una coma
-                strncat(fileList, file_info_entry.filename, listSize - strlen(fileList) - 1);
-                strncat(fileList, ",", listSize - strlen(fileList) - 1);
-                
-                strcpy(fileListData[cont].filename, file_info_entry.filename);
-                strcpy(fileListData[cont].action, file_info_entry.action);
-                cont++;
-            }
-        }
     }
     
     fclose(historyFile);
@@ -349,7 +336,7 @@ void getFileList(const char *listaArchivosPath, char *fileList, size_t listSize,
 
 
 void sendFilesListData(int clientSocket, const char *localDir, char *option, const char *listaArchivosPath){
-    // Obtén la lista de archivos del directorio local
+    // Obtiene la lista de archivos del directorio local
     int cont = 0;
     char fileList[1024];
     struct FileInfo fileListData[100];
@@ -374,10 +361,7 @@ void sendFilesListData(int clientSocket, const char *localDir, char *option, con
         // Obtiene la fecha de modificación del archivo
         struct stat file_Info;
         stat(filePath, &file_Info);
-        /*time_t modificationTime = file_Info.st_mtime;
-        // Envía la fecha de modificación al servidor
-        send(clientSocket, &fileListData[cont].lastModified, sizeof(time_t), 0);*/
-        //Envia la accion
+
         char action[100];
         strcpy(action, fileListData[cont].action);
         send(clientSocket, &action, sizeof(action), 0);
@@ -426,12 +410,12 @@ void renameFileInHistory(const char *listaArchivos, const char *filePath, const 
     while (fread(&file_info_entry, sizeof(struct FileInfo), 1, history_file) == 1) {
         printf("nombre lista %s, nombre a buscar %s\n", file_info_entry.filename, oldFileName);
         if (strcmp(file_info_entry.filename, oldFileName) == 0) {
-            // Encontramos la entrada que deseamos renombrar
+            // Encontrar la entrada que se desea renombrar
             strcpy(file_info_entry.filename, newFileName);
             fseek(history_file, -sizeof(struct FileInfo), SEEK_CUR);
             fwrite(&file_info_entry, sizeof(struct FileInfo), 1, history_file);
             
-            break; // Sal del bucle una vez que se haya encontrado y actualizado el archivo.
+            break; 
         }
     }
     fclose(history_file);
@@ -483,7 +467,7 @@ struct FileInfo getFileStruct(const char *listaArchivosPath, const char *fileNam
     while (fread(&file_info_entry, sizeof(struct FileInfo), 1, history_file) == 1) {
         if (strcmp(file_info_entry.filename, fileName) == 0) {
             fclose(history_file);
-            return file_info_entry; //Si lo encuentra retorna su fecha de modificación
+            return file_info_entry; 
         }
     }
 
@@ -631,33 +615,6 @@ void receiveFilesListData(int clientSocket, const char *localDir, const char *li
     }
 }
 
-void copyFile(const char *sourceFileName, const char *destinationFileName) {
-    printf("probando %s\n tempotal %s\n", sourceFileName, destinationFileName);
-    FILE *sourceFile = fopen(sourceFileName, "rb");
-    if (sourceFile == NULL) {
-        perror("Error al abrir el archivo de origen");
-        exit(EXIT_FAILURE);
-    }
-
-    FILE *destinationFile = fopen(destinationFileName, "wb");
-    if (destinationFile == NULL) {
-        fclose(sourceFile);
-        perror("Error al abrir o crear el archivo de destino");
-        exit(EXIT_FAILURE);
-    }
-
-    struct FileInfo fileInfo;
-
-    // Leer cada entrada del archivo original y escribir en el nuevo archivo
-    while (fread(&fileInfo, sizeof(struct FileInfo), 1, sourceFile) == 1) {
-        fwrite(&fileInfo, sizeof(struct FileInfo), 1, destinationFile);
-    }
-
-    // Cerrar archivos
-    fclose(sourceFile);
-    fclose(destinationFile);
-}
-
 void updateFileAction(const char *filePath, const char *fileName, char *action ){
     FILE *history_file = fopen(filePath, "r+b");
     if (history_file == NULL) {
@@ -669,12 +626,11 @@ void updateFileAction(const char *filePath, const char *fileName, char *action )
 
     while (fread(&file_info_entry, sizeof(struct FileInfo), 1, history_file) == 1) {
         if (strcmp(file_info_entry.filename, fileName) == 0) {
-            // Encontramos la entrada que deseamos actualizar
             strcpy(file_info_entry.action, action);
             
             fseek(history_file, -sizeof(struct FileInfo), SEEK_CUR);
             fwrite(&file_info_entry, sizeof(struct FileInfo), 1, history_file);
-            break; // Sal del bucle una vez que se haya encontrado y actualizado el archivo.
+            break; 
         }
     }
 
@@ -682,7 +638,6 @@ void updateFileAction(const char *filePath, const char *fileName, char *action )
 }
 
 void receiveDeleteFiles(int clientSocket, const char *localDir, const char *listaArchivosPath, const char *listaLocalPath){
-    // Recibe el nombre de los archivos del cliente
     char filenames[1024];
     int bytesRead = recv(clientSocket, filenames, sizeof(filenames), 0);
 
@@ -695,17 +650,12 @@ void receiveDeleteFiles(int clientSocket, const char *localDir, const char *list
         while (token != NULL) {
             char filePath[500];
             snprintf(filePath, sizeof(filePath), "%s/%s", localDir, token);
-            printf("ARCHIVO A ELIMINAR %s\n", filePath);
+            printf("Archivo a eliminar %s\n", filePath);
             remove(filePath);
             updateFileAction(listaArchivosPath, token, "Eliminado");
             updateFileAction(listaLocalPath, token, "Eliminado");
             token = strtok(NULL, ",");
         }
-        printf("Lista Archivos---------------------\n");
-        printFileList(listaArchivosPath);
-        printf("Lista local---------------------\n");
-        printFileList(listaLocalPath);
-
     }
 }
 
@@ -722,19 +672,10 @@ int main(int argc, char *argv[]) {
     char listaArchivosPath[500]; 
     snprintf(listaArchivosPath, sizeof(listaArchivosPath), "%s/%s", localDir, listaArchivosFilename);
 
-    /*const char *listaArchivosTemp = "listaArchivosTemp.bin";
-    char listaArchivosTempPath[500]; 
-    snprintf(listaArchivosTempPath, sizeof(listaArchivosTempPath), "%s/%s", localDir, listaArchivosTemp);*/
-    
-
     const char *listaArchivosLocalFilename = "listaArchivosLocal.bin";
     char listaArchivosLocalPath[500]; 
     snprintf(listaArchivosLocalPath, sizeof(listaArchivosLocalPath), "%s/%s", localDir, listaArchivosLocalFilename);
 
-    /*const char *listaArchivosLocalTemp = "listaArchivosLocalTemp.bin";
-    char listaArchivosLocalTempPath[500]; 
-    snprintf(listaArchivosLocalTempPath, sizeof(listaArchivosLocalTempPath), "%s/%s", localDir, listaArchivosLocalTemp);*/
-    
     struct RenameFile listRenameFiles[100];
     int currentIndex = 0;
 
@@ -794,11 +735,6 @@ int main(int argc, char *argv[]) {
             printf("Lista de archivos creada en: %s\n\n", listaArchivosLocalPath);
         }
 
-        /*copyFile(listaArchivosPath, listaArchivosTempPath);
-        copyFile(listaArchivosLocalPath, listaArchivosLocalTempPath);*/
-
-        // Recibe el nombre de los archivos del cliente
-        //receiveFilesListData(clientSocket, localDir, listaArchivosTempPath, listaArchivosLocalTempPath);
         printf("----------------------------Lista Eliminados Cliente ------------------------------\n\n");
         receiveDeleteFiles(clientSocket, localDir, listaArchivosPath, listaArchivosLocalPath);
         send(clientSocket, "LCK", strlen("LCK"), 0);
@@ -808,8 +744,6 @@ int main(int argc, char *argv[]) {
         send (clientSocket, listaArchivosEliminados, sizeof(listaArchivosEliminados), 0);
         send(clientSocket, "OOK", strlen("OOK"), 0);
     
-
-
         receiveFilesListData(clientSocket, localDir, listaArchivosPath, listaArchivosLocalPath, listRenameFiles, &currentIndex, "Server");
         char ackMessage[4];
         recv(clientSocket, ackMessage, sizeof(ackMessage), 0);
@@ -828,9 +762,6 @@ int main(int argc, char *argv[]) {
         send(clientSocket, "MCK", strlen("MCK"), 0);
 
         printf("-------------------------------------------------------------------------\n\n");
-        //printFileList(listaArchivosLocalTempPath);
-        printf("-------------------------------------------------------------------------\n\n");
-        //printFileList(listaArchivosTempPath);
         printf("index %d\n", currentIndex);
         for (int i = 0; i < currentIndex; ++i) {
             printf("Elemento %d:\n", i);
@@ -844,31 +775,6 @@ int main(int argc, char *argv[]) {
             renameFileInHistory(listaArchivosLocalPath, listRenameFiles[i].oldPath, strrchr(listRenameFiles[i].oldPath, '/')+1, 
             strrchr(listRenameFiles[i].newPath, '/')+1);
         }
-
-        updateFileList(localDir, listaArchivosLocalPath, listaArchivosPath, listaArchivosEliminados);
-        printf("--Lista Archivos-----------------------------------------------------------------------\n\n");
-        printFileList(listaArchivosPath);
-        printf("--Lista LOCAL-----------------------------------------------------------------------\n\n");
-        printFileList(listaArchivosLocalPath);
-        /*char prueba[1024] = {0};
-        memset(prueba, 0, sizeof(prueba));
-        struct FileInfo fileListData[100];
-        getFileList(listaArchivosPath, prueba, sizeof(prueba), "not all",fileListData);
-        if(strlen(prueba) > 0){
-            printf("Lista Obtenida: %s\n", prueba);
-        } else {
-            printf("No hay modificaciones ni nuevos archivos, no es necesario mandar ningún archivo escribir: %s\n", prueba);
-        }*/
-        
-        /*printf("----------------------------Lista Eliminados------------------------------\n\n");
-        printf("Lista eliminados: %s\n", listaArchivosEliminados);
-        cleanFileList(listaArchivosLocalPath);
-        cleanFileList(listaArchivosPath);
-        printf("-------------------------------------------------------------------------\n\n");
-        printFileList(listaArchivosLocalPath);
-        printf("-------------------------------------------------------------------------\n\n");
-        printFileList(listaArchivosPath);*/
-        
 
         cleanFileList(listaArchivosLocalPath, localDir);
         cleanFileList(listaArchivosPath, localDir);
@@ -936,15 +842,11 @@ int main(int argc, char *argv[]) {
             //fprintf(stderr, "Error: Falta de confirmación del servidor o mensaje de error.\n");
         }
 
-        /*copyFile(listaArchivosPath, listaArchivosTempPath);
-        copyFile(listaArchivosLocalPath, listaArchivosLocalTempPath);*/
-
         sendFilesListData(clientSocket, localDir,"all", listaArchivosPath);
         send(clientSocket, "SCK", strlen("SCK"), 0);
 
         printf("\n");
 
-        //receiveFilesListData(clientSocket, localDir, listaArchivosTempPath, listaArchivosLocalTempPath);
         receiveFilesListData(clientSocket, localDir, listaArchivosPath, listaArchivosLocalPath, listRenameFiles, &currentIndex, "Client");
         updateFileList(localDir, listaArchivosLocalPath, listaArchivosPath, listaArchivosEliminados);
         char ackMessage[4];
@@ -956,9 +858,6 @@ int main(int argc, char *argv[]) {
         }
 
         printf("-------------------------------------------------------------------------\n\n");
-        //printFileList(listaArchivosLocalTempPath);
-        printf("-------------------------------------------------------------------------\n\n");
-        //printFileList(listaArchivosTempPath);
         printf("index %d\n", currentIndex);
         for (int i = 0; i < currentIndex; ++i) {
             printf("Elemento %d:\n", i);
@@ -972,15 +871,6 @@ int main(int argc, char *argv[]) {
             renameFileInHistory(listaArchivosLocalPath, listRenameFiles[i].oldPath, strrchr(listRenameFiles[i].oldPath, '/')+1, 
             strrchr(listRenameFiles[i].newPath, '/')+1);
         }
-
-        updateFileList(localDir, listaArchivosLocalPath, listaArchivosPath, listaArchivosEliminados);
-        printf("--Lista Archivos-----------------------------------------------------------------------\n\n");
-        printFileList(listaArchivosPath);
-        printf("--Lista LOCAL-----------------------------------------------------------------------\n\n");
-        printFileList(listaArchivosLocalPath);
-        /*printf("-------------------------------------------------------------------------\n\n");
-        printf("----------------------------Lista Eliminados------------------------------\n\n");
-        printf("Lista eliminados: %s\n", listaArchivosEliminados);*/
 
         cleanFileList(listaArchivosLocalPath, localDir);
         cleanFileList(listaArchivosPath, localDir);
