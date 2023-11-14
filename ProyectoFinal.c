@@ -515,7 +515,9 @@ void receiveFile(int socket, const char *filePath, const char *listaArchivosPath
         struct FileInfo localFileStruct = getFileStruct(listaArchivosPath,fileName);
         printf("Accion entrante: %s Accion lista: %s\n", action, localFileStruct.action);
         printf("Tamaño Archivo entrante: %ld Tamaño archivo lista: %ld\n", fileSize, fileInfoSize);
-        if (strcmp(action,"Modificado") == 0 && strcmp(localFileStruct.action,"Modificado") == 0){
+        if (strcmp(action,"Modificado") == 0 && strcmp(localFileStruct.action,"Modificado") == 0 || 
+            strcmp(action,"Creado") == 0 && strcmp(localFileStruct.action,"Creado") == 0 &&
+            fileSize != localFileStruct.size){
             printf("Ocurre Conflicto\n");
             // Calcular la longitud del nombre del archivo sin la extensión
             size_t name_length = fileExtension - fileName;
